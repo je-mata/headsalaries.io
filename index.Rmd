@@ -59,7 +59,7 @@ Data <- merge(wikidata, ISOData, by = "state")
 #Conseguir polígonos con jsonlite (los bajé de: https://datahub.io/core/geo-countries/r/countries.geojson)
 
 countries <- geojson_read("json/countries.geojson", what = "sp")
-countries <- ms_simplify(countries, keep = 0.1)
+countries <- ms_simplify(countries, keep = 0.025)
 
 #Probar polígonos
 m <- leaflet() %>%
