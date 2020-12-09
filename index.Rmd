@@ -1,7 +1,7 @@
 ---
-title: "Mapas - Salarios de jefes de Estado"
+title: "Mapas - Salarios de jefes de estado"
 author: "José Eduardo Mata"
-date: "9 de diciembre 2020"
+date: "9/12/2020"
 output: 
   html_document: 
     keep_md: yes
