@@ -20,6 +20,7 @@ library(GADMTools)
 library(jsonlite)
 library(geojsonio)
 library(RColorBrewer)
+library(rmapshaper)
 ```
 
 
@@ -33,56 +34,13 @@ library(RColorBrewer)
 #=IMPORTHTML("https://en.wikipedia.org/wiki/List_of_salaries_of_heads_of_state_and_government", "table",2)
 #```
 
+#Esta data se limpió, ordenó y exportó a un archivo llamado "wikidata.csv". Markdown del código para esto está en el doc "getting_cleaning_wikipedia_data.Rmd"
 
-#Usamos la googlesheets4:rangeread() para importar la data de googlesheets
-wikidata <- range_read("1d7v2pI2K2q2A6zx06Lih8QXv_jLVJ7YXw3WOJIMBBto")
+wikidata <- read_csv("wikidata.csv")
 
-#quitar espacios y mayúsculas a nombres de columnas
-names(wikidata) <- str_replace_all(colnames(wikidata),"\\s", "_")
-names(wikidata) <- tolower(colnames(wikidata))
-
-#simplificar nombres de columnas (quitar comas, brackets, etc.)
-wikidata <- rename(wikidata, head_of_state = 'head_of_state_(usd)')
-wikidata <- rename(wikidata, head_of_govt = 'head_of_government_(usd)')
-wikidata <- rename(wikidata, head_of_state_salary_divided_by_gdp_1_per_million = 'head_of_state_salary_divided_by_gdp_[1_per_million]')
-wikidata <- rename(wikidata, head_of_government_salary_divided_by_gdp_1_per_million = 'head_of_government_salary_divided_by_gdp_[1_per_million]')
 ```
 
-```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
-#limpiar columnas de salario
-        #1. Quitar comas de númeral de salario, cambiar espacios y caracteres                     #    especiales por comas o blanks
-        #2. Separar info en múltiples columnas 
-wikidata$head_of_state %<>% str_replace_all(",", "")
-wikidata$head_of_state %<>% str_replace_all("USD", "")
-wikidata$head_of_state %<>% str_replace_all("\\s\\s", ", ")
-wikidata$head_of_state %<>% str_replace_all("\\[", ", ")
-wikidata$head_of_state %<>% str_replace_all("\\]", "")
-wikidata$head_of_state %<>% str_replace_all("\\(", "")
-wikidata$head_of_state %<>% str_replace_all("\\)", "")
-wikidata$head_of_state %<>% str_replace_all("\\-", " ")
-wikidata$head_of_state %<>% str_replace_all("\\.", "")
 
-wikidata <- wikidata %>% separate(head_of_state, c("head_of_state_salary_usd", "post", "source1", "source2", "source3"), sep = ",")
-
-wikidata$head_of_govt %<>% str_replace_all(",", "")
-wikidata$head_of_govt %<>% str_replace_all("USD", "")
-wikidata$head_of_govt %<>% str_replace_all("\\s\\s", ", ")
-wikidata$head_of_govt %<>% str_replace_all("\\[", ", ")
-wikidata$head_of_govt %<>% str_replace_all("\\]", "")
-wikidata$head_of_govt %<>% str_replace_all("\\(", "")
-wikidata$head_of_govt %<>% str_replace_all("\\)", "")
-wikidata$head_of_govt %<>% str_replace_all("\\-", " ")
-wikidata$head_of_govt %<>% str_replace_all("\\.", "")
-
-wikidata <- wikidata %>% separate(head_of_govt, c("head_of_government_salary_usd", "post_hg", "source1_hg", "source2_hg", "source3_hg"), sep = ",")
-
-wikidata$head_of_state_salary_usd <- as.numeric(wikidata$head_of_state_salary_usd)
-wikidata$head_of_government_salary_usd <- as.numeric(wikidata$head_of_government_salary_usd)
-wikidata$head_of_state_salary_divided_by_gdp_per_capita<- as.numeric(wikidata$head_of_state_salary_divided_by_gdp_per_capita)
-wikidata$head_of_government_salary_divided_by_gdp_per_capita <- as.numeric(wikidata$head_of_government_salary_divided_by_gdp_per_capita)
-
-wikidata <- as_tibble(wikidata)
-```
 
 ```{r, , echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
 #Agregar codigos ISO de país a DF
@@ -101,13 +59,12 @@ Data <- merge(wikidata, ISOData, by = "state")
 #Conseguir polígonos con jsonlite (los bajé de: https://datahub.io/core/geo-countries/r/countries.geojson)
 
 countries <- geojson_read("json/countries.geojson", what = "sp")
-
+countries <- ms_simplify(countries, keep = 0.1)
 
 #Probar polígonos
 m <- leaflet() %>%
   addTiles%>%
   addPolygons(data = countries, weight = .5)
-m
 ```
 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
