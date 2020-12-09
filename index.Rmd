@@ -126,6 +126,7 @@ Data <- Data %>%
 
 Data <- Data %>%
     mutate(Bins_headstate_usd = ntile(Data$head_of_state_salary_usd, 8))
+#Los quiebres para tener 8 grupos de salarios son: 0, 16639, 33809, 56529, 74594, 104999, 194299, 809672, Inf
 ```
 
 ## Mapa - Salarios de jefes de estado (USD)
