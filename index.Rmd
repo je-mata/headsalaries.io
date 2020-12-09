@@ -1,0 +1,171 @@
+---
+title: "Mapas - Salarios de jefes de Estado"
+author: "José Eduardo Mata"
+date: "9 de diciembre 2020"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+#Libraries
+library(googlesheets4)
+library(dplyr)
+library(stringr)
+library(magrittr)
+library(tidyverse)
+library(leaflet)
+library(raster)
+library(GADMTools)
+library(jsonlite)
+library(geojsonio)
+library(RColorBrewer)
+```
+
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+#Data - Adquisición y limpieza
+
+#Fuente original: (https://en.wikipedia.org/wiki/List_of_salaries_of_heads_of_state_and_government)
+#La tabla en ese sitio lo exporté spreadsheet en googlesheets usando la fórmula:
+
+#```
+#=IMPORTHTML("https://en.wikipedia.org/wiki/List_of_salaries_of_heads_of_state_and_government", "table",2)
+#```
+
+
+#Usamos la googlesheets4:rangeread() para importar la data de googlesheets
+wikidata <- range_read("1d7v2pI2K2q2A6zx06Lih8QXv_jLVJ7YXw3WOJIMBBto")
+
+#quitar espacios y mayúsculas a nombres de columnas
+names(wikidata) <- str_replace_all(colnames(wikidata),"\\s", "_")
+names(wikidata) <- tolower(colnames(wikidata))
+
+#simplificar nombres de columnas (quitar comas, brackets, etc.)
+wikidata <- rename(wikidata, head_of_state = 'head_of_state_(usd)')
+wikidata <- rename(wikidata, head_of_govt = 'head_of_government_(usd)')
+wikidata <- rename(wikidata, head_of_state_salary_divided_by_gdp_1_per_million = 'head_of_state_salary_divided_by_gdp_[1_per_million]')
+wikidata <- rename(wikidata, head_of_government_salary_divided_by_gdp_1_per_million = 'head_of_government_salary_divided_by_gdp_[1_per_million]')
+```
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+#limpiar columnas de salario
+        #1. Quitar comas de númeral de salario, cambiar espacios y caracteres                     #    especiales por comas o blanks
+        #2. Separar info en múltiples columnas 
+wikidata$head_of_state %<>% str_replace_all(",", "")
+wikidata$head_of_state %<>% str_replace_all("USD", "")
+wikidata$head_of_state %<>% str_replace_all("\\s\\s", ", ")
+wikidata$head_of_state %<>% str_replace_all("\\[", ", ")
+wikidata$head_of_state %<>% str_replace_all("\\]", "")
+wikidata$head_of_state %<>% str_replace_all("\\(", "")
+wikidata$head_of_state %<>% str_replace_all("\\)", "")
+wikidata$head_of_state %<>% str_replace_all("\\-", " ")
+wikidata$head_of_state %<>% str_replace_all("\\.", "")
+
+wikidata <- wikidata %>% separate(head_of_state, c("head_of_state_salary_usd", "post", "source1", "source2", "source3"), sep = ",")
+
+wikidata$head_of_govt %<>% str_replace_all(",", "")
+wikidata$head_of_govt %<>% str_replace_all("USD", "")
+wikidata$head_of_govt %<>% str_replace_all("\\s\\s", ", ")
+wikidata$head_of_govt %<>% str_replace_all("\\[", ", ")
+wikidata$head_of_govt %<>% str_replace_all("\\]", "")
+wikidata$head_of_govt %<>% str_replace_all("\\(", "")
+wikidata$head_of_govt %<>% str_replace_all("\\)", "")
+wikidata$head_of_govt %<>% str_replace_all("\\-", " ")
+wikidata$head_of_govt %<>% str_replace_all("\\.", "")
+
+wikidata <- wikidata %>% separate(head_of_govt, c("head_of_government_salary_usd", "post_hg", "source1_hg", "source2_hg", "source3_hg"), sep = ",")
+
+wikidata$head_of_state_salary_usd <- as.numeric(wikidata$head_of_state_salary_usd)
+wikidata$head_of_government_salary_usd <- as.numeric(wikidata$head_of_government_salary_usd)
+wikidata$head_of_state_salary_divided_by_gdp_per_capita<- as.numeric(wikidata$head_of_state_salary_divided_by_gdp_per_capita)
+wikidata$head_of_government_salary_divided_by_gdp_per_capita <- as.numeric(wikidata$head_of_government_salary_divided_by_gdp_per_capita)
+
+wikidata <- as_tibble(wikidata)
+```
+
+```{r, , echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+#Agregar codigos ISO de país a DF
+
+#Conseguimos los códigos iso3 de los países que necesitarmeos para conseguir los poligonos. La función getData('ISO3') (paquete raster) nos da la lista; cambiamos los nombres 
+ISOData <- as_tibble(getData('ISO3'))
+
+names(ISOData) <- c("iso3", "state")
+
+Data <- merge(wikidata, ISOData, by = "state")
+```
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+#Mapa
+
+#Conseguir polígonos con jsonlite (los bajé de: https://datahub.io/core/geo-countries/r/countries.geojson)
+
+countries <- geojson_read("json/countries.geojson", what = "sp")
+
+
+#Probar polígonos
+m <- leaflet() %>%
+  addTiles%>%
+  addPolygons(data = countries, weight = .5)
+m
+```
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+#unificar DF de polígonos con DF de salarios
+names(countries) <- c("admin", "iso3")
+countries <- merge(countries, Data, by = "iso3")
+```
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+#Buscar quantiles/deciles para definir breaks en bins del mapa
+
+#head_of_state_salary_divided_by_gdp_per_capita
+Data <- Data %>%
+    mutate(Bins_div_gdp = ntile(Data$head_of_state_salary_divided_by_gdp_per_capita, 8))
+#Los quiebres para tener 8 grupos con la misma cantidad de casos son: 0, 4, 5.47, 8.30, 12.12, 21.08, 39.14, 124.65, Inf
+
+Data <- Data %>%
+    mutate(Bins_headstate_usd = ntile(Data$head_of_state_salary_usd, 8))
+```
+
+## Mapa - Salarios de jefes de estado (USD)
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=TRUE}
+
+bins <- c(0, 16639, 33809, 56529, 74594, 104999, 194299, 809672, Inf)
+pal <- colorBin("YlOrRd", domain = countries$head_of_state_salary_usd, bins = bins)
+
+#Para evitar números en fórmato e+00
+options(scipen=999)
+
+m %>% addPolygons(data = countries,
+  fillColor = ~pal(head_of_state_salary_usd),
+  weight = .5,
+  opacity = 1,
+  color = "white",
+  fillOpacity = 0.7,
+  popup = paste(countries$state, countries$post, prettyNum(countries$head_of_state_salary_usd, big.mark = ",", drop0trailing = FALSE), sep = " - ")) %>% setView(40.433333, -3.7, zoom = 1)
+
+```
+
+
+## Mapa - Salarios de jefes de estado dividido entre PIB per capita
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=TRUE}
+
+bins <- c(0, 4, 5.47, 8.30, 12.12, 21.08, 39.14, 124.65, Inf)
+pal <- colorBin("YlOrRd", domain = countries$head_of_state_salary_divided_by_gdp_per_capita, bins = bins)
+
+m %>% addPolygons(data = countries,
+  fillColor = ~pal(head_of_state_salary_divided_by_gdp_per_capita),
+  weight = .5,
+  opacity = 1,
+  color = "white",
+  fillOpacity = 0.7,
+  popup = paste(countries$state, countries$post,     prettyNum(countries$head_of_state_salary_divided_by_gdp_per_capita, big.mark = ","), sep = " - ")) %>% setView(40.433333, -3.7, zoom = 1)
+
+```
+
+
+
+Fuente original: (https://en.wikipedia.org/wiki/List_of_salaries_of_heads_of_state_and_government)
