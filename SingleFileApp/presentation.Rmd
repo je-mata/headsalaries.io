@@ -1,0 +1,87 @@
+---
+title: "Salaries of Heads of State - App Pitch"
+author: "José Eduardo Mata"
+date: "12/16/2020"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Salaries of Heads of State, the app!
+
+Curious about how much your a*¡&ole, I mean commander in chief is making? 
+
+Would you like to compare his/her salary with those of other countries leaders? 
+
+How about visualizing this information on an interactive map?
+
+Your prayers have been answered!
+
+##Look no further! 
+Check out the protoype at: 
+https://jeduardomata.shinyapps.io/Anual_Salaries_of_Heads_of_State_in_USD_MAP/
+
+It's simple: Just toggle the slider and see which countries' leaders make that kind of money anually. Click on a highlighted country and see the details. YEEEES!
+
+## Features
+- Choose the range of salaries and see the map react
+- Press on a country and see information
+
+That's about it! But support our app and we promise new features, such as:
+
+- Toggle between heads of state and heads of government
+- Visualize salaries divided by GDP per capita, and other indicators. You will be surpirsed!
+- More information about these scoundrils, their incomes and the countries.
+
+## The history
+
+A significant piece of this app came from me tryig to make a chloropeth map with the data. I really wanted to learn to use polygons, I finally managed.
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=TRUE}
+library(leaflet)
+library(readr)
+library(geojsonio)
+library(RColorBrewer)
+library(sp)
+
+Data <- read_csv("data.csv")
+countries <- geojson_read("json/simplecountries.geojson", what = "sp")
+m <- leaflet() %>%
+  addTiles%>%
+  addPolygons(data = countries, weight = .5)
+countries <- merge(countries, Data, by = "iso3")
+
+bins <- c(0, 16639, 33809, 56529, 74594, 104999, 194299, 809672, Inf)
+pal <- colorBin("YlOrRd", domain = countries$head_of_state_salary_usd, bins = bins)
+
+options(scipen=999)
+
+m %>% addPolygons(data = countries,
+  fillColor = ~pal(head_of_state_salary_usd),
+  weight = .5,
+  opacity = 1,
+  color = "white",
+  fillOpacity = 0.7,
+  popup = paste(countries$state, countries$post, prettyNum(countries$head_of_state_salary_usd, big.mark = ",", drop0trailing = FALSE), sep = " - ")) %>% setView(40.433333, -3.7, zoom = 1)
+
+```
+
+## An interesting variation 
+
+Salaries divided by the countries' GDP per capita. (I'd like to incoproprate this into the app at some point).
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=TRUE}
+bins <- c(0, 4, 5.47, 8.30, 12.12, 21.08, 39.14, 124.65, Inf)
+pal <- colorBin("YlOrRd", domain = countries$head_of_state_salary_divided_by_gdp_per_capita, bins = bins)
+
+m %>% addPolygons(data = countries,
+  fillColor = ~pal(head_of_state_salary_divided_by_gdp_per_capita),
+  weight = .5,
+  opacity = 1,
+  color = "white",
+  fillOpacity = 0.7,
+  popup = paste(countries$state, countries$post,     prettyNum(countries$head_of_state_salary_divided_by_gdp_per_capita, big.mark = ","), sep = " - ")) %>% setView(40.433333, -3.7, zoom = 1)
+```
+

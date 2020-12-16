@@ -9,18 +9,12 @@ output:
 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
 #Libraries
-library(googlesheets4)
-library(dplyr)
-library(stringr)
-library(magrittr)
-library(tidyverse)
 library(leaflet)
-library(raster)
-library(GADMTools)
-library(jsonlite)
+library(readr)
+library(dplyr)
 library(geojsonio)
 library(RColorBrewer)
-library(rmapshaper)
+library(sp)
 ```
 
 
@@ -34,34 +28,21 @@ library(rmapshaper)
 #=IMPORTHTML("https://en.wikipedia.org/wiki/List_of_salaries_of_heads_of_state_and_government", "table",2)
 #```
 
-#Esta data se limpió, ordenó y exportó a un archivo llamado "wikidata.csv". Markdown del código para esto está en el doc "getting_cleaning_wikipedia_data.Rmd"
+#Esta data se limpió, ordenó, combinó con info de los acronimos ISO de cada país y exportó a un archivo llamado "data.csv". Markdown del código para esto está en el doc "getting_cleaning_wikipedia_data.Rmd"
 
-wikidata <- read_csv("wikidata.csv")
+Data <- read_csv("data.csv")
 
 ```
 
-
-
-```{r, , echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
-#Agregar codigos ISO de país a DF
-
-#Conseguimos los códigos iso3 de los países que necesitarmeos para conseguir los poligonos. La función getData('ISO3') (paquete raster) nos da la lista; cambiamos los nombres 
-ISOData <- as_tibble(getData('ISO3'))
-
-names(ISOData) <- c("iso3", "state")
-
-Data <- merge(wikidata, ISOData, by = "state")
-```
 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
 #Mapa
 
 #Conseguir polígonos con jsonlite (los bajé de: https://datahub.io/core/geo-countries/r/countries.geojson)
 
-countries <- geojson_read("json/countries.geojson", what = "sp")
-countries <- ms_simplify(countries, keep = 0.025)
+countries <- geojson_read("json/simplecountries.geojson", what = "sp")
 
-#Probar polígonos
+#Crear primer mapa (luego le agegaremos poligonos)
 m <- leaflet() %>%
   addTiles%>%
   addPolygons(data = countries, weight = .5)
@@ -69,7 +50,6 @@ m <- leaflet() %>%
 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
 #unificar DF de polígonos con DF de salarios
-names(countries) <- c("admin", "iso3")
 countries <- merge(countries, Data, by = "iso3")
 ```
 
