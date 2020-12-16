@@ -19,13 +19,17 @@ How about visualizing this information on an interactive map?
 
 Your prayers have been answered!
 
-##Look no further! 
-Check out the protoype at: 
+## Look no further! 
+
+Check out the app at: 
 https://jeduardomata.shinyapps.io/Anual_Salaries_of_Heads_of_State_in_USD_MAP/
+Github repository:
+https://github.com/je-mata/headsalaries.io/tree/main/SingleFileApp
 
 It's simple: Just toggle the slider and see which countries' leaders make that kind of money anually. Click on a highlighted country and see the details. YEEEES!
 
 ## Features
+
 - Choose the range of salaries and see the map react
 - Press on a country and see information
 
