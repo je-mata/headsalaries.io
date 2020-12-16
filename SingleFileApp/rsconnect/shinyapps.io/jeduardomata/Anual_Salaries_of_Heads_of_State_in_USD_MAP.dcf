@@ -1,0 +1,13 @@
+name: Anual_Salaries_of_Heads_of_State_in_USD_MAP
+title: Anual_Salaries_of_Heads_of_State_in_USD_MAP
+username:
+account: jeduardomata
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3408405
+bundleId: 3997359
+url: https://jeduardomata.shinyapps.io/Anual_Salaries_of_Heads_of_State_in_USD_MAP/
+when: 1608132631.16621
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: getting_cleaning_wikipedia_data_for_app.Rmd|json/countries.geojson

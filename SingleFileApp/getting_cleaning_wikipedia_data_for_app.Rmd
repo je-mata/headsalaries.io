@@ -1,0 +1,116 @@
+---
+title: "Getting Original Data (Googlesheets & geojson)"
+author: "José Eduardo Mata"
+date: "12/9/2020"
+output: html_document
+---
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+#Libraries
+library(googlesheets4)
+library(dplyr)
+library(stringr)
+library(magrittr)
+library(tidyverse)
+library(leaflet)
+library(raster)
+library(GADMTools)
+library(jsonlite)
+library(geojsonio)
+library(RColorBrewer)
+library(rmapshaper)
+```
+
+
+``````{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+#Data - Adquisición 
+
+#Fuente original: (https://en.wikipedia.org/wiki/List_of_salaries_of_heads_of_state_and_government)
+#La tabla en ese sitio lo exporté spreadsheet en googlesheets usando la fórmula:
+
+#```
+#=IMPORTHTML("https://en.wikipedia.org/wiki/List_of_salaries_of_heads_of_state_and_government", "table",2)
+#```
+
+
+#Usamos la googlesheets4:rangeread() para importar la data de googlesheets
+wikidata <- range_read("1d7v2pI2K2q2A6zx06Lih8QXv_jLVJ7YXw3WOJIMBBto")
+
+#quitar espacios y mayúsculas a nombres de columnas
+names(wikidata) <- str_replace_all(colnames(wikidata),"\\s", "_")
+names(wikidata) <- tolower(colnames(wikidata))
+
+#simplificar nombres de columnas (quitar comas, brackets, etc.)
+wikidata <- rename(wikidata, head_of_state = 'head_of_state_(usd)')
+wikidata <- rename(wikidata, head_of_govt = 'head_of_government_(usd)')
+wikidata <- rename(wikidata, head_of_state_salary_divided_by_gdp_1_per_million = 'head_of_state_salary_divided_by_gdp_[1_per_million]')
+wikidata <- rename(wikidata, head_of_government_salary_divided_by_gdp_1_per_million = 'head_of_government_salary_divided_by_gdp_[1_per_million]')
+```
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, results=FALSE}
+#limpiar columnas de salarios
+        #- Quitar comas de númeral de salario, cambiar espacios y caracteres                       especiales por comas o blanks
+        #- Separar info en múltiples columnas 
+wikidata$head_of_state %<>% str_replace_all(",", "")
+wikidata$head_of_state %<>% str_replace_all("USD", "")
+wikidata$head_of_state %<>% str_replace_all("\\s\\s", ", ")
+wikidata$head_of_state %<>% str_replace_all("\\[", ", ")
+wikidata$head_of_state %<>% str_replace_all("\\]", "")
+wikidata$head_of_state %<>% str_replace_all("\\(", "")
+wikidata$head_of_state %<>% str_replace_all("\\)", "")
+wikidata$head_of_state %<>% str_replace_all("\\-", " ")
+wikidata$head_of_state %<>% str_replace_all("\\.", "")
+
+wikidata <- wikidata %>% separate(head_of_state, c("head_of_state_salary_usd", "post", "source1", "source2", "source3"), sep = ",")
+
+wikidata$head_of_govt %<>% str_replace_all(",", "")
+wikidata$head_of_govt %<>% str_replace_all("USD", "")
+wikidata$head_of_govt %<>% str_replace_all("\\s\\s", ", ")
+wikidata$head_of_govt %<>% str_replace_all("\\[", ", ")
+wikidata$head_of_govt %<>% str_replace_all("\\]", "")
+wikidata$head_of_govt %<>% str_replace_all("\\(", "")
+wikidata$head_of_govt %<>% str_replace_all("\\)", "")
+wikidata$head_of_govt %<>% str_replace_all("\\-", " ")
+wikidata$head_of_govt %<>% str_replace_all("\\.", "")
+
+wikidata <- wikidata %>% separate(head_of_govt, c("head_of_government_salary_usd", "post_hg", "source1_hg", "source2_hg", "source3_hg"), sep = ",")
+
+wikidata$head_of_state_salary_usd <- as.numeric(wikidata$head_of_state_salary_usd)
+wikidata$head_of_government_salary_usd <- as.numeric(wikidata$head_of_government_salary_usd)
+wikidata$head_of_state_salary_divided_by_gdp_per_capita<- as.numeric(wikidata$head_of_state_salary_divided_by_gdp_per_capita)
+wikidata$head_of_government_salary_divided_by_gdp_per_capita <- as.numeric(wikidata$head_of_government_salary_divided_by_gdp_per_capita)
+wikidata$head_of_state_salary_divided_by_gdp_1_per_million <- as.numeric(unlist(wikidata$head_of_state_salary_divided_by_gdp_1_per_million[[1]]))
+
+wikidata <- as_tibble(wikidata)
+if(!file.exists("wikidata.csv")){
+        write_csv(wikidata, file = "wikidata.csv")
+}
+
+#2. Download iso3 (3 letter) country codes and merge with wikidata
+ISOData <- as_tibble(getData('ISO3'))
+names(ISOData) <- c("iso3", "state")
+Data <- merge(wikidata, ISOData, by = "state")
+if(!file.exists("data.csv")){
+        write_csv(Data, file = "data.csv")
+}
+
+#3. Get country poligons from json file; simplify poligons for space and change names for future merge with "Data" datafame (original files from: https://datahub.io/core/geo-countries/r/countries.geojson)
+
+#create data folder, download data & unzip file 
+if(!file.exists("./json")){dir.create("./json")}
+URL <- "https://datahub.io/core/geo-countries/r/countries.geojson"
+if(!file.exists("./json/countries.geojson")){
+        download.file(URL,destfile="./json/countries.geojson", method="curl")
+}
+
+countries <- geojson_read("json/countries.geojson", what = "sp")
+countries <- ms_simplify(countries, keep = 0.025)
+
+#4. Write new simplified geojson file to be used in app (reduced Spacial Polygon
+#   dataframe changes from aprox 25mb to aprox 1.5mb)
+names(countries) <- c("admin", "iso3")
+if(!file.exists("./json/simplecountries.geojson")){
+        geojson_write(countries, file = "./json/simplecountries.geojson")
+}
+```
+
